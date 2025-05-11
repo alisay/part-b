@@ -49,55 +49,74 @@ class Agent:
                 Direction.Right, Direction.Left,
                 Direction.Down, Direction.DownLeft, Direction.DownRight
             }
-        else:  # BLUE
+        else:
             allowed_directions = {
                 Direction.Right, Direction.Left,
                 Direction.Up, Direction.UpLeft, Direction.UpRight
             }
 
+        all_frogs = self.red_frogs | self.blue_frogs
+
         for frog in self.frogs:
+            # One-step adjacent moves
             for direction in allowed_directions:
                 dest = apply_direction(frog, direction)
-                if dest in self.lily_pads and dest not in self.frogs and dest not in self.opponent_frogs:
+                if dest in self.lily_pads and dest not in all_frogs:
                     possible_moves.append(MoveAction(frog, [direction]))
 
+            # Multi-jump sequences
+            jump_paths = find_jump_paths(frog, allowed_directions, all_frogs, self.lily_pads)
+            for path in jump_paths:
+                if is_valid_jump(frog, path, all_frogs, self.lily_pads):
+                    possible_moves.append(MoveAction(frog, path))
+                else:
+                    print(f"[DEBUG] Skipped invalid jump from {frog}: {path}")
+                    
         if possible_moves:
-            # print_board(self.red_frogs, self.blue_frogs, self.lily_pads)
-            return random.choice(possible_moves)
+            rando = random.choice(possible_moves)
+            print(f"[DEBUG]  Randomly selected move: {rando}")
+            print_board(self.red_frogs, self.blue_frogs, self.lily_pads)
+            return rando
+            # return random.choice(possible_moves)
         else:
-            # Fallback to GROW if no legal MOVE
             return GrowAction()
-
+    
     def update(self, color: PlayerColor, action: Action, **referee: dict):
+        # print(f"[UPDATE] {color.name} played {action}")
+        # print_board(self.red_frogs, self.blue_frogs, self.lily_pads)
+
         if isinstance(action, MoveAction):
-            # Reconstruct the destination from the start and directions
-            current = action.coord  # ✅ use 'coord' instead of 'start'
+            current = action.coord
             for direction in action.directions:
-                dr, dc = direction.value
-                current = Coord(current.r + dr, current.c + dc)
+                next_coord = apply_direction(current, direction)
+                if next_coord is None:
+                    raise ValueError(f"Invalid move step from {current} via {direction}")
+                current = next_coord
             destination = current
 
+            # Update lily pads
             self.lily_pads.discard(action.coord)
-            # self.lily_pads.add(destination)
+            self.lily_pads.add(destination)
 
-            # Update frog positions based on which player moved
+            # Update frog positions
             if color == PlayerColor.RED:
-                self.red_frogs.discard(action.coord) 
+                self.red_frogs.discard(action.coord)
                 self.red_frogs.add(destination)
-            else:  # PlayerColor.BLUE
+            else:
                 self.blue_frogs.discard(action.coord)
                 self.blue_frogs.add(destination)
 
         elif isinstance(action, GrowAction):
-            # Determine which frogs are growing
             frogs = self.red_frogs if color == PlayerColor.RED else self.blue_frogs
             for frog in frogs:
                 for adj in adjacent_coords(frog):
                     if adj not in self.lily_pads:
-                        self.lily_pads.add(adj)        
-        
+                        self.lily_pads.add(adj)
+
+        # Recompute current player's frog set references
         self.frogs = self.red_frogs if self._color == PlayerColor.RED else self.blue_frogs
-        self.opponent_frogs = self.blue_frogs if self._color == PlayerColor.RED else self.red_frogs    
+        self.opponent_frogs = self.blue_frogs if self._color == PlayerColor.RED else self.red_frogs
+
 
 def adjacent_coords(coord: Coord) -> list[Coord]:
     directions = [
@@ -108,7 +127,7 @@ def adjacent_coords(coord: Coord) -> list[Coord]:
     result = [] 
     for dr, dc in directions: 
         nr, nc = coord.r + dr, coord.c + dc
-        if 0 <= nr < 7 and 0 <= nc < 7:
+        if 0 <= nr < 8 and 0 <= nc < 8:
             result.append(Coord(nr, nc))
     return result
 
@@ -116,9 +135,43 @@ def apply_direction(coord: Coord, direction: Direction) -> Coord | None:
     dr, dc = direction.value
     new_r, new_c = coord.r + dr, coord.c + dc
     if 0 <= new_r < 8 and 0 <= new_c < 8:
-        return Coord(new_r, new_c)
+        if abs(new_r - coord.r) <= 1 and abs(new_c - coord.c) <= 1:
+            return Coord(new_r, new_c)
     return None
 
+def find_jump_paths(start: Coord, directions: set[Direction], frogs: set[Coord], lily_pads: set[Coord]) -> list[list[Direction]]:
+    """
+    Recursively finds all valid jump sequences from the starting Coord.
+    Returns a list of direction sequences (each is a list of Direction).
+    Now includes debug checks to prevent illegal moves and inspect logic.
+    """
+    paths = []
+
+    def dfs(current: Coord, path: list[Direction], visited: set[Coord], available_lilypads: set[Coord]):
+        for direction in directions:
+            over = apply_direction(current, direction)
+            if over is None or over not in frogs:
+                continue
+
+            dest = apply_direction(over, direction)
+            if (
+                dest is None or
+                dest in frogs or
+                dest in visited or
+                dest not in available_lilypads
+            ):
+                continue
+
+            new_path = path + [direction, direction]
+            paths.append(new_path)
+
+            # Simulate lily pad disappearance from current
+            next_lilypads = available_lilypads - {current}
+            dfs(dest, new_path, visited | {dest}, next_lilypads)
+
+    dfs(start, [], {start}, lily_pads)
+    return paths
+    
 def print_board(red_frogs, blue_frogs, lily_pads):
     """
     Print the 8x8 board using:
@@ -140,3 +193,41 @@ def print_board(red_frogs, blue_frogs, lily_pads):
     for row in board:
         print(" ".join(row))
     print()
+
+def is_valid_jump(start: Coord, directions: list[Direction], frogs: set[Coord], lily_pads: set[Coord]) -> bool:
+    """
+    Simulate a jump and confirm that every jump step:
+    - Jumps over a frog
+    - Lands on an unoccupied lily pad
+    - Doesn't wrap off the board
+    """
+    current = start
+    temp_lilypads = lily_pads.copy()
+
+    #check if the jump doesnt wrap off the board
+    if not all(0 <= apply_direction(current, dir).r < 8 and 0 <= apply_direction(current, dir).c < 8 for dir in directions):
+        print(f"[INVALID] Jump failed: out of bounds")
+        return False
+
+    for i in range(0, len(directions), 2):
+        dir1, dir2 = directions[i], directions[i+1]
+        assert dir1 == dir2, f"Expected direction pairs, got {dir1}, {dir2}"
+
+        over = apply_direction(current, dir1)
+        if over is None or over not in frogs:
+            print(f"[INVALID] Jump failed: no frog to jump over at {over}")
+            return False
+
+        dest = apply_direction(over, dir2)
+        if (
+            dest is None or
+            dest in frogs or
+            dest not in temp_lilypads
+        ):
+            print(f"[INVALID] Jump failed: dest invalid at {dest}")
+            return False
+
+        temp_lilypads.discard(current)  # simulate pad disappearance
+        current = dest
+
+    return True
