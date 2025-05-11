@@ -25,8 +25,8 @@ class Agent:
                 print("Testing: I am playing as BLUE")
 
         # Starting frog positions
-        self.red_frogs = {Coord(0, i) for i in range(1, 6)}
-        self.blue_frogs = {Coord(7, i) for i in range(1, 6)}
+        self.red_frogs = {Coord(0, i) for i in range(1, 7)}
+        self.blue_frogs = {Coord(7, i) for i in range(1, 7)}
 
         # Determine own and opponent frogs
         self.frogs = self.red_frogs if self._color == PlayerColor.RED else self.blue_frogs
@@ -35,8 +35,8 @@ class Agent:
         # Starting lily pads
         self.lily_pads = {
             Coord(0, 0), Coord(0, 7),
-            *{Coord(1, c) for c in range(1, 6)},
-            *{Coord(6, c) for c in range(1, 6)},
+            *{Coord(1, c) for c in range(1, 7)},
+            *{Coord(6, c) for c in range(1, 7)},
             Coord(7, 0), Coord(7, 7)
         }            
         
@@ -61,21 +61,10 @@ class Agent:
                 if dest in self.lily_pads and dest not in self.frogs and dest not in self.opponent_frogs:
                     possible_moves.append(MoveAction(frog, [direction]))
 
-        # if possible_moves:
-        #     return random.choice(possible_moves)
-        # else:
-        #     return GrowAction()
-        
         if possible_moves:
-            # print("lily pads", self.lily_pads)
-            # print(f"Possible moves: {possible_moves}")
-            # print("possible moves", possible_moves[0])
-            #select the first possible move
-            # return MoveAction(0-1, Direction.DownLeft)
-            return possible_moves[0]
-            # return random.choice(possible_moves)
+            # print_board(self.red_frogs, self.blue_frogs, self.lily_pads)
+            return random.choice(possible_moves)
         else:
-            print("lily pads", self.lily_pads)
             # Fallback to GROW if no legal MOVE
             return GrowAction()
 
@@ -129,3 +118,25 @@ def apply_direction(coord: Coord, direction: Direction) -> Coord | None:
     if 0 <= new_r < 8 and 0 <= new_c < 8:
         return Coord(new_r, new_c)
     return None
+
+def print_board(red_frogs, blue_frogs, lily_pads):
+    """
+    Print the 8x8 board using:
+    - 'R' for red frogs
+    - 'B' for blue frogs
+    - '*' for lily pads
+    - '.' for empty cells
+    """
+    board = [["." for _ in range(8)] for _ in range(8)]
+
+    for coord in lily_pads:
+        board[coord.r][coord.c] = "*"
+    for coord in red_frogs:
+        board[coord.r][coord.c] = "R"
+    for coord in blue_frogs:
+        board[coord.r][coord.c] = "B"
+
+    print("\nBoard State:")
+    for row in board:
+        print(" ".join(row))
+    print()
