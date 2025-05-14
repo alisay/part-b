@@ -55,30 +55,36 @@ class Agent:
                 Direction.Up, Direction.UpLeft, Direction.UpRight
             }
 
+        all_frogs = self.red_frogs | self.blue_frogs
+
         for frog in self.frogs:
             for direction in allowed_directions:
                 dest = apply_direction(frog, direction)
-                if dest in self.lily_pads and dest not in self.frogs and dest not in self.opponent_frogs:
+                if dest in self.lily_pads and dest not in all_frogs:
                     possible_moves.append(MoveAction(frog, [direction]))
 
+            jumps = find_jumps(frog, allowed_directions, all_frogs, self.lily_pads, {frog}, [])
+            for path in jumps:
+                possible_moves.append(MoveAction(frog, path))
+
         if possible_moves:
-            # print_board(self.red_frogs, self.blue_frogs, self.lily_pads)
+            print_board(self.red_frogs, self.blue_frogs, self.lily_pads)
             return random.choice(possible_moves)
         else:
             # Fallback to GROW if no legal MOVE
             return GrowAction()
 
     def update(self, color: PlayerColor, action: Action, **referee: dict):
+        print("ACTION",action)
         if isinstance(action, MoveAction):
             # Reconstruct the destination from the start and directions
             current = action.coord  # ✅ use 'coord' instead of 'start'
             for direction in action.directions:
-                dr, dc = direction.value
-                current = Coord(current.r + dr, current.c + dc)
-            destination = current
+                destination = apply_direction(current, direction)
+                if destination in self.red_frogs or destination in self.blue_frogs:
+                    destination = apply_direction(destination, direction)
 
             self.lily_pads.discard(action.coord)
-            # self.lily_pads.add(destination)
 
             # Update frog positions based on which player moved
             if color == PlayerColor.RED:
@@ -140,3 +146,72 @@ def print_board(red_frogs, blue_frogs, lily_pads):
     for row in board:
         print(" ".join(row))
     print()
+
+def find_jumps(start_coord, directions: set[Direction], frogs: set[Coord], lily_pads: set[Coord], visited, paths):
+    path = []
+    for direction in directions:
+        over = apply_direction(start_coord, direction)
+        if over is None:
+            continue
+        dest = apply_direction(over, direction)
+        if dest is None:
+            continue
+        if (
+            0 <= dest.r < 8
+            and 0 <= dest.c < 8
+            and over in frogs
+            and dest in lily_pads
+            and dest not in frogs
+            and dest not in visited
+        ):
+            new_path = path + [direction]
+            paths.append(new_path)
+
+            next_lilypads = lily_pads - {start_coord}
+            next_frogs = (frogs - {start_coord}) | {dest}
+            find_jumps(dest, directions, next_frogs, next_lilypads, visited | {dest}, new_path)
+    return paths
+
+        #     new_state = state.copy()
+        #     new_state[dest] = CellState.RED
+        #     del new_state[start_coord]
+        #     new_state[over] = CellState.LILY_PAD
+        #     visited.add(dest)
+
+        #     # Recursive continuation
+        #     find_jumps(start_coord, dest, visited, new_directions)
+
+        #     # After finishing the sequence, add the move
+        #     successors.append(
+        #         (new_state, path + [MoveAction(start_coord, new_directions)])
+        #     )
+
+# find_jumps(coord, coord, {coord}, [])
+
+def find_jump_paths(start: Coord, directions: set[Direction], frogs: set[Coord], lily_pads: set[Coord]) -> list[list[Direction]]:
+    paths = []
+
+    def dfs(current: Coord, path: list[Direction], visited: set[Coord], available_lilypads: set[Coord], current_frogs: set[Coord]):
+        for direction in directions:
+            # print("DIRECTION:", direction)  
+            over = apply_direction(current, direction)
+            if over is None or over not in current_frogs:
+                continue
+
+            dest = apply_direction(over, direction)
+            # print("DESTINATION:", dest)
+            if dest is None or dest in current_frogs or dest not in available_lilypads or dest in visited:
+                continue
+
+            new_path = path + [direction]
+            paths.append(new_path)
+
+            next_lilypads = available_lilypads - {current}
+            next_frogs = (current_frogs - {current}) | {dest}
+            dfs(dest, new_path, visited | {dest}, next_lilypads, next_frogs)
+
+    dfs(start, [], {start}, lily_pads, frogs)
+    return paths
+            
+            #deleted from jumps above 
+            # jump_paths = find_jump_paths(frog, allowed_directions, all_frogs, self.lily_pads)
