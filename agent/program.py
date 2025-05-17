@@ -67,18 +67,16 @@ class Agent:
             for path in jumps:
                 possible_moves.append((MoveAction(frog, path)))  
         if possible_moves:
-            print_board(self.red_frogs, self.blue_frogs, self.lily_pads)
+            # print_board(self.red_frogs, self.blue_frogs, self.lily_pads)
             return random.choice(possible_moves)
         else:
             # Fallback to GROW if no legal MOVE
-            print_board(self.red_frogs, self.blue_frogs, self.lily_pads)
+            # print_board(self.red_frogs, self.blue_frogs, self.lily_pads)
             return GrowAction()
     
 
     def update(self, color: PlayerColor, action: Action, **referee: dict):
         if isinstance(action, MoveAction):
-            print("Action is ", action)
-            print("Action directions are ", action.directions)
             current = action.coord
             for direction in action.directions:
                 current = apply_direction(current, direction)
@@ -96,7 +94,6 @@ class Agent:
             else:  # PlayerColor.BLUE
                 self.blue_frogs.discard(action.coord)
                 self.blue_frogs.add(destination)
-            print("Moved", action.coord, "to", destination)
 
         elif isinstance(action, GrowAction):
             # Determine which frogs are growing
