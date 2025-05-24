@@ -124,7 +124,6 @@ class Agent:
                            *{Coord(6,c) for c in range(1,7)}, Coord(7,0), Coord(7,7)}
 
     def action(self, **referee: dict) -> Action:
-        print_board(self.red_frogs, self.blue_frogs, self.lily_pads)
         # build root node and run αβ-minimax
         MAX_DEPTH = 2
         root = GameStateNode(self.red_frogs, self.blue_frogs, self.lily_pads,
