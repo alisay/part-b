@@ -21,7 +21,6 @@ class GameStateNode:
         return self.depth >= self.max_depth
 
     def evaluate(self):
-        # simple heuristic: difference in forward progress
         red_progress = sum(f.r for f in self.red_frogs)
         blue_progress = sum(7 - f.r for f in self.blue_frogs)
         if self.color == PlayerColor.RED:
@@ -35,9 +34,7 @@ class GameStateNode:
             PlayerColor.BLUE if self.color == PlayerColor.RED else PlayerColor.RED
         )
         frogs = self.red_frogs if active == PlayerColor.RED else self.blue_frogs
-        opponent = self.blue_frogs if active == PlayerColor.RED else self.red_frogs
 
-        # allowed directions
         if active == PlayerColor.RED:
             allowed_dirs = {Direction.Right, Direction.Left,
                             Direction.Down, Direction.DownLeft, Direction.DownRight}
@@ -69,12 +66,10 @@ class GameStateNode:
                                       max_depth=self.max_depth)
                     )
 
-        # jumps
         jumps = []
         for frog in frogs:
-            paths = find_jumps(frog, frog, allowed_dirs, all_frogs, self.lily_pads, {frog}, [])
+            paths = find_jumps(frog, frog, allowed_dirs, all_frogs, self.lily_pads, {frog}, jumps)
             for path in paths:
-                # compute landing
                 current = frog
                 for d in path:
                     over = apply_direction(current, d)
@@ -97,7 +92,6 @@ class GameStateNode:
                                   max_depth=self.max_depth)
                 )
 
-        # grow
         action = GrowAction()
         new_red = set(self.red_frogs)
         new_blue = set(self.blue_frogs)
@@ -124,16 +118,14 @@ class Agent:
                            *{Coord(6,c) for c in range(1,7)}, Coord(7,0), Coord(7,7)}
 
     def action(self, **referee: dict) -> Action:
-        # build root node and run αβ-minimax
-        MAX_DEPTH = 2
+        MAX_DEPTH = 3
         root = GameStateNode(self.red_frogs, self.blue_frogs, self.lily_pads,
                               isMax=True, color=self._color,
                               name=None, depth=0, max_depth=MAX_DEPTH)
         _, best = minimax_alpha_beta(root, float('-inf'), float('inf'))
         if best:
-            best_move = best[0]   # the MoveAction/GrowAction stored in node.name
+            best_move = best[0]   
             return best_move
-        # fallback
         return GrowAction()
 
     def update(self, color: PlayerColor, action: Action, **referee: dict):
@@ -148,16 +140,14 @@ class Agent:
             
             self.lily_pads.discard(action.coord)
 
-            # Update frog positions based on which player moved
             if color == PlayerColor.RED:
                 self.red_frogs.discard(action.coord) 
                 self.red_frogs.add(destination)
-            else:  # PlayerColor.BLUE
+            else:  
                 self.blue_frogs.discard(action.coord)
                 self.blue_frogs.add(destination)
 
         elif isinstance(action, GrowAction):
-            # Determine which frogs are growing
             frogs = self.red_frogs if color == PlayerColor.RED else self.blue_frogs
             for frog in frogs:
                 for adj in adjacent_coords(frog):
@@ -220,7 +210,6 @@ def find_jumps(start: Coord, current: Coord, directions: set[Direction], frogs: 
             next_lilypads = lily_pads - {current}
             next_frogs = (frogs - {current}) | {dest}
 
-            # Recursively find extensions
             extended_paths = find_jumps(start, dest, directions, next_frogs, next_lilypads, visited | {dest}, new_path)
             if extended_paths:
                 all_paths.extend(extended_paths)
@@ -237,13 +226,13 @@ def find_jumps(start: Coord, current: Coord, directions: set[Direction], frogs: 
 # See: https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en
 
 def minimax_alpha_beta(node, alpha, beta, depth=0):
-    best=None      # only used if it will be pruned
+    best=None      
     if node.isLeaf():
         return node.evaluate(),None
     elif node.isMax:
         for C in node.children():
             score,path = minimax_alpha_beta(C,alpha,beta,depth+1)
-            if score >= beta:    # beta pruning
+            if score >= beta:    
                 return score, None 
             if score > alpha:
                 alpha = score
@@ -252,7 +241,7 @@ def minimax_alpha_beta(node, alpha, beta, depth=0):
     else:
         for C in node.children():
             score,path = minimax_alpha_beta(C,alpha,beta,depth+1)
-            if score <= alpha:     # alpha pruning
+            if score <= alpha:     
                 return score, None
             if score < beta:
                 beta=score
